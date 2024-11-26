@@ -75,6 +75,20 @@ public struct ScalingHeaderScrollView<Header: View, Content: View>: View {
     /// Use this variable to programmatically change header's visibility state
     @Binding private var shouldSnapTo: SnapHeaderState?
 
+
+
+
+// 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加//
+
+    /// 用于控制内容的滚动位置
+    @Binding private var contentScrollPosition: CGFloat?
+
+    /// 是否使用动画
+    private var animateScroll: Bool = true
+
+
+    // 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加//
+
     /// Scroll view did reach bottom
     private var didReachBottom: (() -> Void)?
 
@@ -164,7 +178,8 @@ public struct ScalingHeaderScrollView<Header: View, Content: View>: View {
     // MARK: - Init
 
     public init(@ViewBuilder header: @escaping () -> Header,
-                @ViewBuilder content: @escaping () -> Content) {
+                @ViewBuilder content: @escaping () -> Content,
+                contentScrollPosition: Binding<CGFloat?> = .constant(nil)) {//后添加
         self.header = header()
         self.content = content()
         _progress = .constant(0)
@@ -172,6 +187,9 @@ public struct ScalingHeaderScrollView<Header: View, Content: View>: View {
         _isLoading = .constant(false)
         _scrollToTop = .constant(false)
         _shouldSnapTo = .constant(nil)
+
+
+        _contentScrollPosition = contentScrollPosition//后添加
     }
 
     // MARK: - Body builder
@@ -246,6 +264,16 @@ public struct ScalingHeaderScrollView<Header: View, Content: View>: View {
 
     private func configure(scrollView: UIScrollView) {
         scrollView.delegate = scrollViewDelegate
+
+        // 添加这段代码   后添加
+        if let position = contentScrollPosition {
+            DispatchQueue.main.async {
+                scrollView.setContentOffset(CGPoint(x: 0, y: position), animated: self.animateScroll)
+                self.contentScrollPosition = nil  // 重置，避免重复滚动
+            }
+        }
+
+
         if let didPullToRefresh = didPullToRefresh {
             scrollViewDelegate.didPullToRefresh = {
                 pullToLoadMoreInProgress = false
@@ -417,6 +445,14 @@ extension View {
 // MARK: - Modifiers
 
 extension ScalingHeaderScrollView {
+
+    /// 设置内容的滚动位置   后添加
+    public func setContentScrollPosition(_ position: Binding<CGFloat?>, animated: Bool = true) -> ScalingHeaderScrollView {
+        var scalingHeaderScrollView = self
+        scalingHeaderScrollView._contentScrollPosition = position
+        scalingHeaderScrollView.animateScroll = animated
+        return scalingHeaderScrollView
+    }
 
     /// Passes current collapse progress value into progress binding
     public func collapseProgress(_ progress: Binding<CGFloat>) -> ScalingHeaderScrollView {
