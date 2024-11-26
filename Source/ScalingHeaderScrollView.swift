@@ -268,8 +268,8 @@ public struct ScalingHeaderScrollView<Header: View, Content: View>: View {
         // 添加这段代码   后添加
         if let position = contentScrollPosition {
             DispatchQueue.main.async {
-                //scrollView.setContentOffset(CGPoint(x: 0, y: position), animated: self.animateScroll)
-                scrollView.setContentOffset(CGPoint(x: 0, y: position), animated: false)  // 把 animated 设为 false
+                scrollView.setContentOffset(CGPoint(x: 0, y: position), animated: self.animateScroll)
+                //scrollView.setContentOffset(CGPoint(x: 0, y: position), animated: false)  // 把 animated 设为 false
                 self.contentScrollPosition = nil  // 重置，避免重复滚动
             }
         }
