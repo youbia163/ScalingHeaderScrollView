@@ -75,11 +75,19 @@ public struct ScalingHeaderScrollView<Header: View, Content: View>: View {
     /// Use this variable to programmatically change header's visibility state
     @Binding private var shouldSnapTo: SnapHeaderState?
 
+
+
+
+// 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加//
+
     /// 用于控制内容的滚动位置
     @Binding private var contentScrollPosition: CGFloat?
 
     /// 是否使用动画
     private var animateScroll: Bool = true
+
+
+    // 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加 后添加//
 
     /// Scroll view did reach bottom
     private var didReachBottom: (() -> Void)?
@@ -171,7 +179,7 @@ public struct ScalingHeaderScrollView<Header: View, Content: View>: View {
 
     public init(@ViewBuilder header: @escaping () -> Header,
                 @ViewBuilder content: @escaping () -> Content,
-                contentScrollPosition: Binding<CGFloat?> = .constant(nil)) {
+                contentScrollPosition: Binding<CGFloat?> = .constant(nil)) {//后添加
         self.header = header()
         self.content = content()
         _progress = .constant(0)
@@ -179,174 +187,67 @@ public struct ScalingHeaderScrollView<Header: View, Content: View>: View {
         _isLoading = .constant(false)
         _scrollToTop = .constant(false)
         _shouldSnapTo = .constant(nil)
-        _contentScrollPosition = contentScrollPosition
+
+
+        _contentScrollPosition = contentScrollPosition//后添加
     }
 
     // MARK: - Body builder
 
     public var body: some View {
         GeometryReader { globalGeometry in
-            if #available(iOS 26.0, *) {
-                scrollViewWithOnScrollGeometryChange(globalGeometry: globalGeometry)
-            } else {
-                scrollViewWithIntrospect(globalGeometry: globalGeometry)
+            ScrollView(showsIndicators: showsIndicators) {
+                content
+                    .offset(y: contentOffset)
+                    .frameGetter($contentFrame.frame)
+                    .onChange(of: contentFrame.frame) { frame in
+                        pullToRefreshInProgress = frame.minY - globalGeometry.frame(in: .global).minY > 20.0
+                    }
+                    .onChange(of: scrollToTop) { value in
+                        if value {
+                            scrollToTop = false
+                            setScrollPositionTo(.expanded)
+                        }
+                    }
+                    .onChange(of: shouldSnapTo) { value in
+                        if let value = value {
+                            shouldSnapTo = nil
+                            setScrollPositionTo(value)
+                        }
+                    }
+                GeometryReader { scrollGeometry in
+                    ZStack(alignment: .topLeading) {
+                        if showPullToRefreshProgress {
+                            progressView
+                                .opacity(pullToRefreshOpacity)
+                                .offset(y: getOffsetForHeader() + progressViewOffset)
+                        }
+                        header
+                            .frame(height: headerHeight, alignment: headerAlignment)
+                            .clipped(isClipped: headerIsClipped)
+                            .contentShape(Rectangle())
+                            .offset(y: getOffsetForHeader())
+                            .allowsHitTesting(true)
+                            .scaleEffect(headerScaleOnPullDown)
+                    }
+                    .offset(y: getGeometryReaderVsScrollView(scrollGeometry: scrollGeometry, globalGeometry: globalGeometry))
+                }
+                .background(Color.clear)
+                .frame(height: maxHeight)
+                .offset(y: -(contentFrame.startingRect?.maxY ?? UIScreen.main.bounds.height))
             }
-
+            .animation(headerAnimation, value: shouldSnapTo)
+            .introspect(.scrollView, on: .iOS(.v15, .v16, .v17, .v18, .v26)) { scrollView in
+                configure(scrollView: scrollView)
+            }
+            .onAppear {
+                snapInitialScrollPosition()
+            }
             if showPullToLoadMoreProgress {
                 progressView
                     .opacity(pullToLoadOpacity)
                     .offset(y: globalGeometry.size.height - 60)
             }
-        }
-    }
-
-    // MARK: - iOS 18+ 新实现 (使用 onScrollGeometryChange)
-    @available(iOS 18.0, *)
-    @ViewBuilder
-    private func scrollViewWithOnScrollGeometryChange(globalGeometry: GeometryProxy) -> some View {
-        ScrollView(showsIndicators: showsIndicators) {
-            content
-                .offset(y: contentOffset)
-                .frameGetter($contentFrame.frame)
-                .onChange(of: contentFrame.frame) { frame in
-                    pullToRefreshInProgress = frame.minY - globalGeometry.frame(in: .global).minY > 20.0
-                    
-                    // 处理 pull-to-refresh 回调
-                    if pullToRefreshInProgress && !isLoading {
-                        if let didPullToRefresh = didPullToRefresh {
-                            pullToLoadMoreInProgress = false
-                            pullToRefreshInProgress = true
-                            withAnimation { isLoading = true }
-                            didPullToRefresh()
-                        }
-                    }
-                }
-                .onChange(of: scrollToTop) { value in
-                    if value {
-                        scrollToTop = false
-                        // iOS 18 使用 ScrollView 的 scrollTo
-                        withAnimation {
-                            scrollOffset = 0
-                        }
-                    }
-                }
-                .onChange(of: shouldSnapTo) { value in
-                    if let value = value {
-                        shouldSnapTo = nil
-                        setScrollPositionForIOS26(value)
-                    }
-                }
-            GeometryReader { scrollGeometry in
-                ZStack(alignment: .topLeading) {
-                    if showPullToRefreshProgress {
-                        progressView
-                            .opacity(pullToRefreshOpacity)
-                            .offset(y: getOffsetForHeaderWithOffset(-scrollOffset) + progressViewOffset)
-                    }
-                    header
-                        .frame(height: allowsHeaderCollapseFlag ? getHeightForHeaderViewWithOffset(-scrollOffset) : maxHeight, alignment: headerAlignment)
-                        .clipped(isClipped: headerIsClipped)
-                        .contentShape(Rectangle())
-                        .offset(y: getOffsetForHeaderWithOffset(-scrollOffset))
-                        .allowsHitTesting(true)
-                        .scaleEffect(!hasPullToRefresh && allowsHeaderGrowthFlag ? fmax(1.0, getHeightForHeaderViewWithOffset(-scrollOffset) / maxHeight * 0.9) : 1.0)
-                }
-                .offset(y: getGeometryReaderVsScrollViewWithOffset(scrollGeometry: scrollGeometry, globalGeometry: globalGeometry, offset: -scrollOffset))
-            }
-            .background(Color.clear)
-            .frame(height: maxHeight)
-            .offset(y: -(contentFrame.startingRect?.maxY ?? UIScreen.main.bounds.height))
-        }
-        .animation(headerAnimation, value: shouldSnapTo)
-        .onScrollGeometryChange(for: ScrollData.self) { geometry in
-            ScrollData(
-                contentOffset: geometry.contentOffset,
-                contentSize: geometry.contentSize,
-                containerSize: geometry.containerSize
-            )
-        } action: { oldValue, newValue in
-            let offset = newValue.contentOffset.y
-            self.progress = getCollapseProgressWithOffset(offset)
-            self.scrollOffset = -offset
-            
-            // 处理 pull-to-load-more 回调
-            let maxYOffset = newValue.contentSize.height - newValue.containerSize.height
-            if -offset >= maxYOffset && !isLoading {
-                if let didPullToLoadMore = didPullToLoadMore {
-                    pullToLoadMoreInProgress = true
-                    pullToRefreshInProgress = false
-                    withAnimation { isLoading = true }
-                    didPullToLoadMore()
-                }
-            }
-            
-            // 处理 didReachBottom 回调
-            if -offset >= maxYOffset {
-                didReachBottom?()
-            }
-            
-            withAnimation {
-                pullToRefreshOpacity = -(-offset) > 32.0 ? 0.0 : 1.0
-                pullToLoadOpacity = -(-offset) < maxYOffset ? 0.0 : 1.0
-            }
-            
-            // 处理 header snapping (模拟 didEndDragging)
-            handleHeaderSnappingForIOS26(offset: offset)
-        }
-        .onAppear {
-            snapInitialScrollPositionForIOS26()
-        }
-    }
-
-    // MARK: - iOS 17 及以下 (使用 SwiftUIIntrospect)
-    @ViewBuilder
-    private func scrollViewWithIntrospect(globalGeometry: GeometryProxy) -> some View {
-        ScrollView(showsIndicators: showsIndicators) {
-            content
-                .offset(y: contentOffset)
-                .frameGetter($contentFrame.frame)
-                .onChange(of: contentFrame.frame) { frame in
-                    pullToRefreshInProgress = frame.minY - globalGeometry.frame(in: .global).minY > 20.0
-                }
-                .onChange(of: scrollToTop) { value in
-                    if value {
-                        scrollToTop = false
-                        setScrollPositionTo(.expanded)
-                    }
-                }
-                .onChange(of: shouldSnapTo) { value in
-                    if let value = value {
-                        shouldSnapTo = nil
-                        setScrollPositionTo(value)
-                    }
-                }
-            GeometryReader { scrollGeometry in
-                ZStack(alignment: .topLeading) {
-                    if showPullToRefreshProgress {
-                        progressView
-                            .opacity(pullToRefreshOpacity)
-                            .offset(y: getOffsetForHeader() + progressViewOffset)
-                    }
-                    header
-                        .frame(height: headerHeight, alignment: headerAlignment)
-                        .clipped(isClipped: headerIsClipped)
-                        .contentShape(Rectangle())
-                        .offset(y: getOffsetForHeader())
-                        .allowsHitTesting(true)
-                        .scaleEffect(headerScaleOnPullDown)
-                }
-                .offset(y: getGeometryReaderVsScrollView(scrollGeometry: scrollGeometry, globalGeometry: globalGeometry))
-            }
-            .background(Color.clear)
-            .frame(height: maxHeight)
-            .offset(y: -(contentFrame.startingRect?.maxY ?? UIScreen.main.bounds.height))
-        }
-        .animation(headerAnimation, value: shouldSnapTo)
-        .introspect(.scrollView, on: .iOS(.v15, .v16, .v17, .v18)) { scrollView in
-            configure(scrollView: scrollView)
-        }
-        .onAppear {
-            snapInitialScrollPosition()
         }
     }
 
@@ -364,13 +265,15 @@ public struct ScalingHeaderScrollView<Header: View, Content: View>: View {
     private func configure(scrollView: UIScrollView) {
         scrollView.delegate = scrollViewDelegate
 
-        // 添加这段代码
+        // 添加这段代码   后添加
         if let position = contentScrollPosition {
             DispatchQueue.main.async {
                 scrollView.setContentOffset(CGPoint(x: 0, y: position), animated: self.animateScroll)
+                //scrollView.setContentOffset(CGPoint(x: 0, y: position), animated: false)  // 把 animated 设为 false
                 self.contentScrollPosition = nil  // 重置，避免重复滚动
             }
         }
+
 
         if let didPullToRefresh = didPullToRefresh {
             scrollViewDelegate.didPullToRefresh = {
@@ -477,7 +380,7 @@ public struct ScalingHeaderScrollView<Header: View, Content: View>: View {
         }
     }
 
-    // MARK: - Private getters for heights and offsets (原有方法，用于 SwiftUIIntrospect)
+    // MARK: - Private getters for heights and offsets
 
     private func getScrollOffset() -> CGFloat {
         -(uiScrollView?.contentOffset.y ?? 0)
@@ -524,123 +427,6 @@ public struct ScalingHeaderScrollView<Header: View, Content: View>: View {
     private func getHeightForLoadingView() -> CGFloat {
         fmax(0, getScrollOffset())
     }
-
-    // MARK: - 新增方法，用于 onScrollGeometryChange
-
-    @available(iOS 18.0, *)
-    private func getMaxYOffsetWithGeometry(_ geometry: ScrollGeometry) -> CGFloat {
-        geometry.contentSize.height - geometry.containerSize.height
-    }
-
-    @available(iOS 18.0, *)
-    private func getGeometryReaderVsScrollViewWithOffset(scrollGeometry: GeometryProxy, globalGeometry: GeometryProxy, offset: CGFloat) -> CGFloat {
-        offset - scrollGeometry.frame(in: .global).minY + globalGeometry.frame(in: .global).minY
-    }
-
-    @available(iOS 18.0, *)
-    private func getOffsetForHeaderWithOffset(_ offset: CGFloat) -> CGFloat {
-        let extraSpace = maxHeight - minHeight
-
-        if offset < -extraSpace {
-            let imageOffset = abs(fmin(-extraSpace, offset))
-            return allowsHeaderCollapseFlag ? imageOffset : (minHeight - maxHeight) - offset
-        } else if offset > 0 {
-            return -offset
-        }
-        return maxHeight - (allowsHeaderCollapseFlag ? getHeightForHeaderViewWithOffset(offset) : maxHeight)
-    }
-
-    @available(iOS 18.0, *)
-    private func getHeightForHeaderViewWithOffset(_ offset: CGFloat) -> CGFloat {
-        if hasPullToRefresh {
-            return fmin(fmax(minHeight, maxHeight + offset), maxHeight)
-        } else {
-            return fmax(minHeight, maxHeight + offset)
-        }
-    }
-
-    @available(iOS 18.0, *)
-    private func getCollapseProgressWithOffset(_ offset: CGFloat) -> CGFloat {
-        1 - fmin(fmax((getHeightForHeaderViewWithOffset(offset) - minHeight) / (maxHeight - minHeight), 0), 1)
-    }
-
-    /// iOS 18 专用的状态变量
-    @State private var lastScrollOffset: CGFloat = 0
-    @State private var scrollVelocity: CGFloat = 0
-    @State private var isScrolling: Bool = false
-    @State private var scrollEndTimer: Timer?
-
-    // MARK: - iOS 18 专用的辅助方法
-
-    @available(iOS 18.0, *)
-    private func setScrollPositionForIOS26(_ state: SnapHeaderState) {
-        withAnimation {
-            switch state {
-            case .expanded:
-                scrollOffset = 0
-            case .collapsed:
-                scrollOffset = -(maxHeight - minHeight)
-            case .custom(let value):
-                scrollOffset = -(maxHeight - minHeight + value)
-            }
-        }
-    }
-
-    @available(iOS 18.0, *)
-    private func snapInitialScrollPositionForIOS26() {
-        if let initialSnapPosition = initialSnapPosition {
-            let extraSpace: CGFloat = maxHeight - minHeight
-            let targetOffset = -(initialSnapPosition * extraSpace)
-            withAnimation {
-                scrollOffset = targetOffset
-            }
-        }
-    }
-
-    @available(iOS 18.0, *)
-    private func handleHeaderSnappingForIOS26(offset: CGFloat) {
-        guard !headerSnappingPositions.isEmpty else { return }
-        
-        // 计算滚动速度
-        let currentOffset = -offset
-        scrollVelocity = currentOffset - lastScrollOffset
-        lastScrollOffset = currentOffset
-        
-        // 检测滚动是否结束（模拟 didEndDragging + didEndDecelerating）
-        if abs(scrollVelocity) > 0.1 {
-            isScrolling = true
-            scrollEndTimer?.invalidate()
-            scrollEndTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { _ in
-                if abs(self.scrollVelocity) < 0.1 {
-                    self.isScrolling = false
-                    self.snapScrollPositionForIOS26(currentOffset: currentOffset)
-                }
-            }
-        }
-    }
-
-    @available(iOS 18.0, *)
-    private func snapScrollPositionForIOS26(currentOffset: CGFloat) {
-        let extraSpace: CGFloat = maxHeight - minHeight
-        let offset = currentOffset
-        
-        for i in 0..<headerSnappingPositions.count - 1 {
-            let first = headerSnappingPositions[i] * extraSpace
-            let second = headerSnappingPositions[i+1] * extraSpace
-            if offset > first, offset < second {
-                let result: CGFloat
-                if (offset - first) < (second - offset) {
-                    result = first
-                } else {
-                    result = second
-                }
-                withAnimation {
-                    scrollOffset = -result
-                }
-                return
-            }
-        }
-    }
 }
 
 // MARK: - Extension View
@@ -661,7 +447,7 @@ extension View {
 
 extension ScalingHeaderScrollView {
 
-    /// 设置内容的滚动位置
+    /// 设置内容的滚动位置   后添加
     public func setContentScrollPosition(_ position: Binding<CGFloat?>, animated: Bool = true) -> ScalingHeaderScrollView {
         var scalingHeaderScrollView = self
         scalingHeaderScrollView._contentScrollPosition = position
@@ -807,12 +593,4 @@ extension ScalingHeaderScrollView {
         scalingHeaderScrollView.headerAlignment = alignment
         return scalingHeaderScrollView
     }
-}
-
-// 添加这个结构体来传递滚动数据
-@available(iOS 18.0, *)
-private struct ScrollData: Equatable {
-    let contentOffset: CGPoint
-    let contentSize: CGSize
-    let containerSize: CGSize
 }
